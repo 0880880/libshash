@@ -275,6 +275,101 @@ void sb_free(StringBuilder *sb) {
 
 //
 // -=================================================================-
+// -======================== Argument Parser ========================-
+// -=================================================================-
+//
+
+typedef struct {
+    char *name;
+    char *secondary_name;
+    char *help;
+    void *default_value;
+    bool implicit_value;
+    bool required;
+    bool user_set;
+    bool positional;
+    int positional_idx;
+    void *value;
+} Argument;
+
+typedef struct {
+    char *program_name;
+    Argument **arguments;
+    size_t num_args;
+    char define_char;
+} Program;
+
+typedef struct {
+    Argument **arguments;
+    size_t num_args;
+} ParseResult;
+
+Program program_create(char *program_name, char define_char) {
+    Program program;
+    program.program_name = program_name;
+    program.num_args = 0;
+    program.define_char = define_char;
+    return program;
+}
+
+Argument *program_add_argument(Program *program, char *name) {
+    Argument *arg = (Argument *)malloc(sizeof(Argument)); // DEFAULTS
+    arg->name = 0;
+    arg->secondary_name = 0;
+    arg->help = 0;
+    arg->implicit_value = 0;
+    arg->value = 0;
+    arg->default_value = 0;
+    arg->positional = 0;
+    arg->positional_idx = 0;
+    arg->user_set = 0;
+    arg->required = 0;
+    if (program->num_args == 0) {
+        program->arguments = (Argument **)malloc(1 * sizeof(Argument *));
+        program->arguments[0] = arg;
+    } else {
+        program->arguments = (Argument **)realloc(
+            program->arguments, (program->num_args + 1) * sizeof(Argument *));
+        program->arguments[program->num_args] = arg;
+    }
+    program->num_args++;
+    return arg;
+}
+
+Argument *program_get_argument(Program *program, char *name) {
+    for (size_t i = 0; i < program->num_args; i++) {
+        if (program->arguments[i]->name == name ||
+            program->arguments[i]->secondary_name == name) {
+            return program->arguments[i];
+        }
+    }
+    return 0;
+}
+
+ParseResult *program_parse(Program *program, char **argv, int argc) {
+    ParseResult *result = (ParseResult *)malloc(sizeof(ParseResult));
+
+    return result;
+}
+
+Argument *parse_get_argument(ParseResult *result, char *name) {
+    for (size_t i = 0; i < result->num_args; i++) {
+        if (result->arguments[i]->name == name ||
+            result->arguments[i]->secondary_name == name) {
+            return result->arguments[i];
+        }
+    }
+    return 0;
+}
+
+//
+// -=================================================================-
+// -======================== Argument Parser ========================-
+// -=================================================================-
+//
+
+//
+// -=================================================================-
 // -======================= Built-in Commands =======================-
 // -=================================================================-
 //
