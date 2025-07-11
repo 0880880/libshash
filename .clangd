@@ -1,2 +1,6 @@
 CompileFlags:
-  Add: [-DSHASH_IMPLEMENTATION]
+    Add: 
+        - -x
+        - c
+        - -std=c99
+        - -DSHASH_IMPLEMENTATION
