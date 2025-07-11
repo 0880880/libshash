@@ -72,7 +72,7 @@ typedef struct {
     char *buffer;
     size_t len;
     size_t nb;
-} _utf8_str;
+} shash_utf8_str;
 
 typedef struct {
     char *name;
@@ -281,7 +281,7 @@ SHASH_PRIVATE const char *utf8_char_at(const char *s, size_t index) {
     return NULL; // index out of range
 }
 
-static inline const char *utf8_str_char_at(_utf8_str *u, size_t index) {
+static inline const char *utf8_str_char_at(shash_utf8_str *u, size_t index) {
     return u->str[index];
 }
 
@@ -326,9 +326,9 @@ SHASH_PRIVATE size_t utf8_strlen(const char *s) {
     return len;
 }
 
-SHASH_PRIVATE _utf8_str utf8_str(const char *s) {
+SHASH_PRIVATE shash_utf8_str utf8_str(const char *s) {
     if (!s) {
-        return (_utf8_str){.str = NULL, .buffer = NULL, .len = 0};
+        return (shash_utf8_str){.str = NULL, .buffer = NULL, .len = 0};
     }
     size_t len = utf8_strlen(s);
     char **str = (char **)xmalloc(sizeof(char *) * len);
@@ -353,7 +353,7 @@ SHASH_PRIVATE _utf8_str utf8_str(const char *s) {
 
         t = next;
     }
-    _utf8_str u;
+    shash_utf8_str u;
     u.str = str;
     u.buffer = buffer;
     u.len = len;
@@ -393,14 +393,15 @@ SHASH_PRIVATE bool utf8_eq(const char *a, const char *b) {
     return 1;
 }
 
-SHASH_PRIVATE bool utf8_str_eq(_utf8_str *a, _utf8_str *b) { // TODO Implement
+SHASH_PRIVATE bool utf8_str_eq(shash_utf8_str *a,
+                               shash_utf8_str *b) { // TODO Implement
     if (!a || !b) {
         return 0;
     }
     return 0;
 }
 
-SHASH_PRIVATE bool utf8_contains_ascii_char(_utf8_str *u, char ch) {
+SHASH_PRIVATE bool utf8_contains_ascii_char(shash_utf8_str *u, char ch) {
     if (!u || !ch || u->len == 0) {
         return false;
     }
@@ -412,7 +413,7 @@ SHASH_PRIVATE bool utf8_contains_ascii_char(_utf8_str *u, char ch) {
     return false;
 }
 
-SHASH_PRIVATE void utf8_free(_utf8_str *u) {
+SHASH_PRIVATE void utf8_free(shash_utf8_str *u) {
     free(u->str);
     free(u->buffer);
 }
@@ -421,8 +422,8 @@ SHASH_PRIVATE bool utf8_endswith(const char *str, const char *end) {
     if (!str || !end) {
         return false;
     }
-    _utf8_str u = utf8_str(str);
-    _utf8_str end_u = utf8_str(end);
+    shash_utf8_str u = utf8_str(str);
+    shash_utf8_str end_u = utf8_str(end);
     if (end_u.nb > u.nb) {
         utf8_free(&u);
         utf8_free(&end_u);
@@ -487,7 +488,7 @@ SHASH_PRIVATE char *utf8_lower_dup(char *str) {
     if (!str) {
         return NULL;
     }
-    _utf8_str u = utf8_str(str);
+    shash_utf8_str u = utf8_str(str);
     if (u.len == 0) {
         return NULL;
     }
@@ -572,16 +573,16 @@ typedef struct {
     char *data;
     size_t len;
     size_t capacity;
-} StringBuilder;
+} ShashStringBuilder;
 
-SHASH_PRIVATE void sb_init(StringBuilder *sb, size_t initial_capacity) {
+SHASH_PRIVATE void sb_init(ShashStringBuilder *sb, size_t initial_capacity) {
     sb->data = (char *)xmalloc(initial_capacity * sizeof(char));
     sb->len = 0;
     sb->capacity = initial_capacity;
     sb->data[0] = '\0';
 }
 
-void sb_append_utf8(StringBuilder *sb, const char *utf8) {
+void sb_append_utf8(ShashStringBuilder *sb, const char *utf8) {
     size_t char_len = utf8_len((unsigned char)*utf8);
     if (sb->len + char_len + 1 > sb->capacity) {
         while (sb->len + char_len + 1 > sb->capacity) {
@@ -595,7 +596,7 @@ void sb_append_utf8(StringBuilder *sb, const char *utf8) {
     sb->len += char_len;
 }
 
-SHASH_PRIVATE void sb_append(StringBuilder *sb, char *str) {
+SHASH_PRIVATE void sb_append(ShashStringBuilder *sb, char *str) {
     if (!str)
         return;
     size_t str_len = strlen(str);
@@ -610,8 +611,8 @@ SHASH_PRIVATE void sb_append(StringBuilder *sb, char *str) {
     sb->len += str_len;
 }
 
-SHASH_PRIVATE void sb_append_utf8_str(StringBuilder *sb, _utf8_str *u, int size,
-                                      int offset) {
+SHASH_PRIVATE void sb_append_utf8_str(ShashStringBuilder *sb, shash_utf8_str *u,
+                                      int size, int offset) {
     size_t total = 0;
     for (int i = offset; i < offset + size; i++) {
         total += utf8_len(*u->str[i]);
@@ -629,7 +630,7 @@ SHASH_PRIVATE void sb_append_utf8_str(StringBuilder *sb, _utf8_str *u, int size,
     }
 }
 
-SHASH_PRIVATE void sb_append_c(StringBuilder *sb, char c) {
+SHASH_PRIVATE void sb_append_c(ShashStringBuilder *sb, char c) {
     if (sb->len + 2 > sb->capacity) { // +1 for char, +1 for null terminator
         sb->capacity += 1;
         sb->capacity *= 2;
@@ -639,15 +640,16 @@ SHASH_PRIVATE void sb_append_c(StringBuilder *sb, char c) {
     sb->data[sb->len] = '\0';
 }
 
-SHASH_PRIVATE void sb_ensure_capacity(StringBuilder *sb, int capacity) {
+SHASH_PRIVATE void sb_ensure_capacity(ShashStringBuilder *sb, int capacity) {
     if (capacity > sb->capacity) {
         sb->capacity = capacity;
         sb->data = (char *)realloc(sb->data, capacity * sizeof(char));
     }
 }
 
-SHASH_PRIVATE StringBuilder sb_copy(StringBuilder *sb, int size, int offset) {
-    StringBuilder copy;
+SHASH_PRIVATE ShashStringBuilder sb_copy(ShashStringBuilder *sb, int size,
+                                         int offset) {
+    ShashStringBuilder copy;
     sb_init(&copy, size + 1);
     memcpy(copy.data, sb->data + offset, size);
     copy.data[size] = '\0';
@@ -655,13 +657,13 @@ SHASH_PRIVATE StringBuilder sb_copy(StringBuilder *sb, int size, int offset) {
     return copy;
 }
 
-static inline StringBuilder sb_copy_all(StringBuilder *sb) {
+static inline ShashStringBuilder sb_copy_all(ShashStringBuilder *sb) {
     return sb_copy(sb, sb->len, 0);
 }
 
-static inline void sb_clear(StringBuilder *sb) { sb->len = 0; }
+static inline void sb_clear(ShashStringBuilder *sb) { sb->len = 0; }
 
-SHASH_PRIVATE void sb_free(StringBuilder *sb) {
+SHASH_PRIVATE void sb_free(ShashStringBuilder *sb) {
     free(sb->data);
     sb->data = NULL;
     sb->len = 0;
@@ -670,9 +672,9 @@ SHASH_PRIVATE void sb_free(StringBuilder *sb) {
 
 SHASH_PRIVATE char *utf8_strip_dup(char *str) {
 
-    _utf8_str u = utf8_str(str);
+    shash_utf8_str u = utf8_str(str);
 
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, u.len);
 
     bool start = false;
@@ -737,21 +739,21 @@ typedef struct {
     void **data;
     size_t capacity;
     size_t size;
-} Array;
+} ShashArray;
 
-SHASH_PRIVATE void arr_init(Array *arr, int initial_capacity) {
+SHASH_PRIVATE void array_init(ShashArray *arr, int initial_capacity) {
     arr->data = (void **)xmalloc(initial_capacity * sizeof(void *));
     arr->capacity = initial_capacity;
     arr->size = 0;
 }
 
-SHASH_PRIVATE void arr_copy(Array *origin, Array *arr) {
+SHASH_PRIVATE void array_copy(ShashArray *origin, ShashArray *arr) {
     arr->data = (void **)xmalloc(origin->size * sizeof(void *));
     arr->capacity = origin->size;
     arr->size = origin->size;
 }
 
-SHASH_PRIVATE void arr_add(Array *arr, void *item) {
+SHASH_PRIVATE void array_append(ShashArray *arr, void *item) {
     if (arr->size + 1 > arr->capacity) {
         if (arr->capacity == 0) {
             arr->capacity = 1;
@@ -769,7 +771,7 @@ SHASH_PRIVATE void arr_add(Array *arr, void *item) {
     arr->size++;
 }
 
-SHASH_PRIVATE void *arr_pop(Array *arr) {
+SHASH_PRIVATE void *array_pop(ShashArray *arr) {
     if (arr->size == 0) {
         return NULL;
     }
@@ -777,11 +779,13 @@ SHASH_PRIVATE void *arr_pop(Array *arr) {
     return arr->data[arr->size];
 }
 
-static inline void *arr_get(Array *arr, int index) { return arr->data[index]; }
+static inline void *array_get(ShashArray *arr, int index) {
+    return arr->data[index];
+}
 
-static inline void arr_clear(Array *arr) { arr->size = 0; }
+static inline void array_clear(ShashArray *arr) { arr->size = 0; }
 
-SHASH_PRIVATE void arr_free(Array *arr) {
+SHASH_PRIVATE void array_free(ShashArray *arr) {
     arr->size = 0;
     arr->capacity = 0;
     free(arr->data);
@@ -794,7 +798,7 @@ typedef struct {
     size_t size;
 } ShashIntArray;
 
-SHASH_PRIVATE void int_arr_add(ShashIntArray *arr, int el) {
+SHASH_PRIVATE void int_array_append(ShashIntArray *arr, int el) {
     if (arr->size + 1 > arr->capacity) {
         if (arr->capacity == 0)
             arr->capacity = 1;
@@ -805,11 +809,11 @@ SHASH_PRIVATE void int_arr_add(ShashIntArray *arr, int el) {
     arr->size++;
 }
 
-static inline int int_arr_pop(ShashIntArray *arr) {
+static inline int int_array_pop(ShashIntArray *arr) {
     return arr->data[--arr->size];
 }
 
-SHASH_PRIVATE void int_arr_free(ShashIntArray *arr) {
+SHASH_PRIVATE void int_array_free(ShashIntArray *arr) {
     if (arr->data) {
         free(arr->data);
         arr->data = NULL;
@@ -1022,18 +1026,18 @@ SHASH_PRIVATE char *normalize_path_dup(char *str) {
     if (!str) {
         return NULL;
     }
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, utf8_strlen(str) / 2);
-    _utf8_str u = utf8_str(str);
+    shash_utf8_str u = utf8_str(str);
     bool slash = false;
-    StringBuilder sub_sb;
+    ShashStringBuilder sub_sb;
     sb_init(&sub_sb, 1);
     for (int i = 0; i < u.len; i++) {
         char *ch = u.str[i];
         if (utf8_eq_ascii(ch, '/') || utf8_eq_ascii(ch, '\\')) {
             if (!slash) {
                 bool all_dots = true;
-                _utf8_str sub_u = utf8_str(sub_sb.data);
+                shash_utf8_str sub_u = utf8_str(sub_sb.data);
                 for (int i = 0; i < sub_u.len; i++) {
                     if (!utf8_eq_ascii(sub_u.str[i], '.')) {
                         all_dots = false;
@@ -1069,7 +1073,7 @@ SHASH_PRIVATE char *normalize_path_dup(char *str) {
 
 SHASH_PRIVATE char *path_remove_file_dup(char *path) {
     char *norm = normalize_path_dup(path);
-    _utf8_str u = utf8_str(norm);
+    shash_utf8_str u = utf8_str(norm);
 
     for (int i = u.len - 1; i >= 0; i--) {
         if (utf8_eq_ascii(u.str[i], '/')) {
@@ -1092,7 +1096,7 @@ SHASH_PRIVATE bool is_absolute(char *path) {
         return false;
     }
     char *norm = normalize_path_dup(path);
-    _utf8_str u = utf8_str(norm);
+    shash_utf8_str u = utf8_str(norm);
     if (u.len == 0) {
         utf8_free(&u);
         return false;
@@ -1177,11 +1181,11 @@ SHASH_PRIVATE char *join_path_dup(char *a, char *b) {
     }
     char *anorm = normalize_path_dup(a);
     int size = 0;
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, strlen(b));
-    StringBuilder sub_sb;
+    ShashStringBuilder sub_sb;
     sb_init(&sub_sb, 1);
-    _utf8_str b_uni = utf8_str(b);
+    shash_utf8_str b_uni = utf8_str(b);
     for (int i = 0; i < b_uni.len; i++) {
         char *ch = b_uni.str[i];
         if (utf8_eq_ascii(ch, '/')) {
@@ -1205,7 +1209,7 @@ SHASH_PRIVATE char *join_path_dup(char *a, char *b) {
     sb_clear(&sb);
     utf8_free(&b_uni);
     sb_free(&sub_sb);
-    _utf8_str a_uni = utf8_str(anorm);
+    shash_utf8_str a_uni = utf8_str(anorm);
 
     int end = strlen(anorm);
     for (int i = a_uni.len - 1; i >= 0; i--) {
@@ -1285,15 +1289,15 @@ typedef struct {
     float threshold;
     size_t size;
     size_t table_size;
-} StringMap;
+} ShashStringMap;
 
 SHASH_PRIVATE int table_size(int capacity) {
     return 1 << -count_leading_zeros(
                max_i(2, (int)ceil(capacity / (double)LOAD_FACTOR)) - 1);
 }
 
-SHASH_PRIVATE StringMap *create_string_map(int capacity) {
-    StringMap *map = (StringMap *)xmalloc(sizeof(StringMap));
+SHASH_PRIVATE ShashStringMap *create_string_map(int capacity) {
+    ShashStringMap *map = (ShashStringMap *)xmalloc(sizeof(ShashStringMap));
     int size = table_size(capacity);
     map->threshold = (int)(size * LOAD_FACTOR);
     map->mask = size - 1;
@@ -1309,9 +1313,9 @@ SHASH_PRIVATE StringMap *create_string_map(int capacity) {
     return map;
 }
 
-SHASH_PRIVATE StringMap *string_map_copy(StringMap *origin) {
+SHASH_PRIVATE ShashStringMap *string_map_copy(ShashStringMap *origin) {
 
-    StringMap *map = (StringMap *)xmalloc(sizeof(StringMap));
+    ShashStringMap *map = (ShashStringMap *)xmalloc(sizeof(ShashStringMap));
     int size = origin->table_size;
     map->threshold = origin->threshold;
     map->mask = origin->mask;
@@ -1330,7 +1334,7 @@ SHASH_PRIVATE StringMap *string_map_copy(StringMap *origin) {
     return map;
 }
 
-SHASH_PRIVATE void string_map_free(StringMap *map) {
+SHASH_PRIVATE void string_map_free(ShashStringMap *map) {
     free(map->key_table);
     free(map->val_table);
     free(map);
@@ -1351,11 +1355,11 @@ SHASH_PRIVATE uint32_t fnv1a_hash(char *str) {
     return hash;
 }
 
-SHASH_PRIVATE int string_map_place(StringMap *map, char *str) {
+SHASH_PRIVATE int string_map_place(ShashStringMap *map, char *str) {
     return fnv1a_hash(str) & map->mask;
 }
 
-SHASH_PRIVATE int string_map_locate_key(StringMap *map, char *key) {
+SHASH_PRIVATE int string_map_locate_key(ShashStringMap *map, char *key) {
     for (int i = string_map_place(map, key);; i = i + 1 & map->mask) {
         char *other = map->key_table[i];
         if (utf8_eq(key, other))
@@ -1365,7 +1369,7 @@ SHASH_PRIVATE int string_map_locate_key(StringMap *map, char *key) {
     }
 }
 
-SHASH_PRIVATE void string_map_put_resize(StringMap *map, char *key,
+SHASH_PRIVATE void string_map_put_resize(ShashStringMap *map, char *key,
                                          void *value) {
     for (int i = string_map_place(map, key);; i = i + 1 & map->mask) {
         if (!map->key_table[i]) {
@@ -1375,7 +1379,7 @@ SHASH_PRIVATE void string_map_put_resize(StringMap *map, char *key,
     }
 }
 
-SHASH_PRIVATE void string_map_resize(StringMap *map, int new_size) {
+SHASH_PRIVATE void string_map_resize(ShashStringMap *map, int new_size) {
 
     int old_cap = map->size;
 
@@ -1404,7 +1408,8 @@ SHASH_PRIVATE void string_map_resize(StringMap *map, int new_size) {
     free(old_vals);
 }
 
-SHASH_PRIVATE void *string_map_put(StringMap *map, char *key, void *value) {
+SHASH_PRIVATE void *string_map_put(ShashStringMap *map, char *key,
+                                   void *value) {
     int i = string_map_locate_key(map, key);
     if (i >= 0) {
         void *old = map->val_table[i];
@@ -1420,7 +1425,7 @@ SHASH_PRIVATE void *string_map_put(StringMap *map, char *key, void *value) {
     return NULL;
 }
 
-SHASH_PRIVATE void *string_map_get(StringMap *map, char *key) {
+SHASH_PRIVATE void *string_map_get(ShashStringMap *map, char *key) {
     for (int i = string_map_place(map, key);; i = i + 1 & map->mask) {
         char *other = map->key_table[i];
         if (utf8_eq(key, other))
@@ -1430,7 +1435,7 @@ SHASH_PRIVATE void *string_map_get(StringMap *map, char *key) {
     }
 }
 
-SHASH_PRIVATE bool string_map_contains(StringMap *map, char *key) {
+SHASH_PRIVATE bool string_map_contains(ShashStringMap *map, char *key) {
     for (int i = string_map_place(map, key);; i = i + 1 & map->mask) {
         char *other = map->key_table[i];
         if (utf8_eq(key, other))
@@ -1539,10 +1544,10 @@ typedef struct {
     float threshold;
     size_t size;
     size_t table_size;
-} IntMap;
+} ShashIntMap;
 
-SHASH_PRIVATE IntMap *create_int_map(int capacity) {
-    IntMap *map = (IntMap *)xmalloc(sizeof(IntMap));
+SHASH_PRIVATE ShashIntMap *create_int_map(int capacity) {
+    ShashIntMap *map = (ShashIntMap *)xmalloc(sizeof(ShashIntMap));
     int size = table_size(capacity);
     map->threshold = (int)(size * LOAD_FACTOR);
     map->mask = size - 1;
@@ -1559,8 +1564,8 @@ SHASH_PRIVATE IntMap *create_int_map(int capacity) {
     return map;
 }
 
-SHASH_PRIVATE IntMap *int_map_copy(IntMap *origin) {
-    IntMap *map = (IntMap *)xmalloc(sizeof(IntMap));
+SHASH_PRIVATE ShashIntMap *int_map_copy(ShashIntMap *origin) {
+    ShashIntMap *map = (ShashIntMap *)xmalloc(sizeof(ShashIntMap));
     int size = origin->table_size;
     map->threshold = origin->threshold;
     map->mask = origin->mask;
@@ -1580,17 +1585,17 @@ SHASH_PRIVATE IntMap *int_map_copy(IntMap *origin) {
     return map;
 }
 
-SHASH_PRIVATE void int_map_free(IntMap *map) {
+SHASH_PRIVATE void int_map_free(ShashIntMap *map) {
     free(map->key_table);
     free(map->val_table);
     free(map);
 }
 
-static inline int int_map_place(IntMap *map, int i) {
+static inline int int_map_place(ShashIntMap *map, int i) {
     return ((unsigned int)(i * map->hash_multiplier)) >> map->shift;
 }
 
-SHASH_PRIVATE int int_map_locate_key(IntMap *map, int key) {
+SHASH_PRIVATE int int_map_locate_key(ShashIntMap *map, int key) {
     for (int i = int_map_place(map, key);; i = i + 1 & map->mask) {
         int other = map->key_table[i];
         int *addr = &key;
@@ -1601,7 +1606,7 @@ SHASH_PRIVATE int int_map_locate_key(IntMap *map, int key) {
     }
 }
 
-SHASH_PRIVATE void int_map_put_resize(IntMap *map, int key, void *value) {
+SHASH_PRIVATE void int_map_put_resize(ShashIntMap *map, int key, void *value) {
     for (int i = int_map_place(map, key);; i = i + 1 & map->mask) {
         if (!map->key_table[i]) {
             map->key_table[i] = key;
@@ -1610,7 +1615,7 @@ SHASH_PRIVATE void int_map_put_resize(IntMap *map, int key, void *value) {
     }
 }
 
-SHASH_PRIVATE void int_map_resize(IntMap *map, int new_size) {
+SHASH_PRIVATE void int_map_resize(ShashIntMap *map, int new_size) {
 
     int old_cap = map->size;
 
@@ -1639,7 +1644,7 @@ SHASH_PRIVATE void int_map_resize(IntMap *map, int new_size) {
     free(old_vals);
 }
 
-SHASH_PRIVATE void *int_map_put(IntMap *map, int key, void *value) {
+SHASH_PRIVATE void *int_map_put(ShashIntMap *map, int key, void *value) {
     int i = int_map_locate_key(map, key);
     if (i >= 0) {
         void *old = map->val_table[i];
@@ -1655,7 +1660,7 @@ SHASH_PRIVATE void *int_map_put(IntMap *map, int key, void *value) {
     return NULL;
 }
 
-SHASH_PRIVATE void *int_map_get(IntMap *map, int key) {
+SHASH_PRIVATE void *int_map_get(ShashIntMap *map, int key) {
     for (int i = int_map_place(map, key);; i = i + 1 & map->mask) {
         int other = map->key_table[i];
         if (key == other)
@@ -1665,7 +1670,7 @@ SHASH_PRIVATE void *int_map_get(IntMap *map, int key) {
     }
 }
 
-SHASH_PRIVATE bool int_map_contains(IntMap *map, int key) {
+SHASH_PRIVATE bool int_map_contains(ShashIntMap *map, int key) {
     for (int i = int_map_place(map, key);; i = i + 1 & map->mask) {
         int other = map->key_table[i];
         if (key == other)
@@ -1681,7 +1686,7 @@ SHASH_PRIVATE bool int_map_contains(IntMap *map, int key) {
 // -=================================================================-
 //
 
-SHASH_PRIVATE Array *separate_paths_dup(char *var) {
+SHASH_PRIVATE ShashArray *separate_paths_dup(char *var) {
     int size = 0;
     for (int i = 0; var[i] != 0;) {
         int len = utf8_len((unsigned char)var[i]);
@@ -1691,15 +1696,15 @@ SHASH_PRIVATE Array *separate_paths_dup(char *var) {
         i += len;
     }
     if (size == 0) {
-        Array *paths = (Array *)xmalloc(sizeof(Array));
-        arr_init(paths, 1);
-        arr_add(paths, var);
+        ShashArray *paths = (ShashArray *)xmalloc(sizeof(ShashArray));
+        array_init(paths, 1);
+        array_append(paths, var);
         return paths;
     }
-    Array *paths = (Array *)xmalloc(sizeof(Array));
-    arr_init(paths, size);
+    ShashArray *paths = (ShashArray *)xmalloc(sizeof(ShashArray));
+    array_init(paths, size);
     int med_size = utf8_strlen(var) / size;
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, med_size);
     for (int i = 0; i < utf8_strlen(var); i++) {
         const char *ch = utf8_char_at(var, i);
@@ -1707,7 +1712,7 @@ SHASH_PRIVATE Array *separate_paths_dup(char *var) {
             break;
         int len = utf8_len((unsigned char)*ch);
         if (utf8_eq_ascii(ch, ENV_PATH_SEPARATOR)) {
-            arr_add(paths, dupstr(sb.data));
+            array_append(paths, dupstr(sb.data));
             sb_clear(&sb);
         } else {
             sb_append_utf8(&sb, ch);
@@ -1755,7 +1760,7 @@ SHASH_PRIVATE bool utoi(const char *u, int *out) {
     return true;
 }
 
-SHASH_PRIVATE void get_all_env(StringMap *map) {
+SHASH_PRIVATE void get_all_env(ShashStringMap *map) {
     LPWCH envBlock = GetEnvironmentStringsW();
     if (!envBlock) {
         fprintf(stderr, "GetEnvironmentStringsW failed: %lu\n", GetLastError());
@@ -1794,7 +1799,7 @@ SHASH_PRIVATE void get_all_env(StringMap *map) {
 }
 
 SHASH_PRIVATE char *remove_ext_dup(char *path) {
-    _utf8_str u = utf8_str(path);
+    shash_utf8_str u = utf8_str(path);
     int len = strlen(path);
     for (int i = u.len - 1; i >= 0; i--) {
         char *ch = u.str[i];
@@ -1812,7 +1817,7 @@ SHASH_PRIVATE char *remove_ext_dup(char *path) {
 
 SHASH_PRIVATE char *path_filename_dup(char *path) {
     char *norm = normalize_path_dup(path);
-    _utf8_str u = utf8_str(norm);
+    shash_utf8_str u = utf8_str(norm);
     int len = strlen(norm);
     for (int i = u.len - 1; i >= 0; i--) {
         char *ch = u.str[i];
@@ -1829,7 +1834,7 @@ SHASH_PRIVATE char *path_filename_dup(char *path) {
     return out;
 }
 
-SHASH_PRIVATE Array *get_files_dup(char *pattern) {
+SHASH_PRIVATE ShashArray *get_files_dup(char *pattern) {
     wchar_t search_path[MAX_PATH];
     utf8_to_wide_fill(pattern, search_path, MAX_PATH);
     WIN32_FIND_DATAW ffd;
@@ -1839,15 +1844,15 @@ SHASH_PRIVATE Array *get_files_dup(char *pattern) {
         return NULL;
     }
 
-    Array *files = (Array *)xmalloc(sizeof(Array));
-    arr_init(files, 1);
+    ShashArray *files = (ShashArray *)xmalloc(sizeof(ShashArray));
+    array_init(files, 1);
 
     do {
         if (wcscmp(ffd.cFileName, L".") == 0 ||
             wcscmp(ffd.cFileName, L"..") == 0)
             continue;
 
-        arr_add(files, wide_to_utf8_dup(ffd.cFileName));
+        array_append(files, wide_to_utf8_dup(ffd.cFileName));
     } while (FindNextFileW(hFind, &ffd) != 0);
 
     FindClose(hFind);
@@ -1988,7 +1993,7 @@ BOOL is_directory_empty(char *path) {
 SHASH_PRIVATE char *path_parent_dup(char *path) {
     char *norm = normalize_path_dup(path);
     int len = strlen(norm);
-    _utf8_str norm_u = utf8_str(norm);
+    shash_utf8_str norm_u = utf8_str(norm);
     for (int i = norm_u.len - 1; i >= 0; i--) {
         char *ch = norm_u.str[i];
         len -= utf8_len(*ch);
@@ -2351,7 +2356,7 @@ SHASH_PRIVATE Process *process_launch(Shell *shell, char **argv, int argc,
     si.hStdOutput = hStdOutput;
     si.hStdError = hStdError;
 
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, 256);
     for (int i = 0; i < argc; i++) {
         sb_append(&sb, argv[i]);
@@ -2404,13 +2409,13 @@ int process_wait(Process *proc) {
 }
 
 SHASH_PRIVATE char **split_script(char *text, int *len) {
-    _utf8_str u = utf8_str(text);
+    shash_utf8_str u = utf8_str(text);
 
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, 16);
 
-    Array lines;
-    arr_init(&lines, 1);
+    ShashArray lines;
+    array_init(&lines, 1);
 
     int escape_idx = -1;
 
@@ -2419,7 +2424,7 @@ SHASH_PRIVATE char **split_script(char *text, int *len) {
         if (escape_idx != i && sb.len > 0 &&
             (utf8_eq_ascii(ch, '\n') ||
              (escape_idx != i && utf8_eq_ascii(ch, ';')))) {
-            arr_add(&lines, utf8_strip_dup(sb.data));
+            array_append(&lines, utf8_strip_dup(sb.data));
             sb_clear(&sb);
         } else if (escape_idx != i && utf8_eq_ascii(ch, '\\')) {
             escape_idx = i + 1;
@@ -2428,7 +2433,7 @@ SHASH_PRIVATE char **split_script(char *text, int *len) {
         }
     }
     if (sb.len > 0) {
-        arr_add(&lines, utf8_strip_dup(sb.data));
+        array_append(&lines, utf8_strip_dup(sb.data));
     }
     utf8_free(&u);
     sb_free(&sb);
@@ -2438,13 +2443,13 @@ SHASH_PRIVATE char **split_script(char *text, int *len) {
 }
 
 SHASH_PRIVATE char **split_line(char *line, int *len) {
-    _utf8_str u = utf8_str(line);
+    shash_utf8_str u = utf8_str(line);
 
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, 16);
 
-    Array sections;
-    arr_init(&sections, 1);
+    ShashArray sections;
+    array_init(&sections, 1);
 
     enum ShashQuoteKind quote = SHASH_QUOTE_NONE;
     int escape_idx = -1;
@@ -2453,7 +2458,7 @@ SHASH_PRIVATE char **split_line(char *line, int *len) {
         char *ch = u.str[i];
         int rem = u.len - i - 1;
         if (sb.len > 0 && quote == SHASH_QUOTE_NONE && utf8_eq_ascii(ch, ' ')) {
-            arr_add(&sections, utf8_strip_dup(sb.data));
+            array_append(&sections, utf8_strip_dup(sb.data));
             sb_clear(&sb);
         } else if (escape_idx != i && utf8_eq_ascii(ch, '\\')) {
             escape_idx = i + 1;
@@ -2476,7 +2481,7 @@ SHASH_PRIVATE char **split_line(char *line, int *len) {
         }
     }
     if (sb.len > 0) {
-        arr_add(&sections, utf8_strip_dup(sb.data));
+        array_append(&sections, utf8_strip_dup(sb.data));
     }
     utf8_free(&u);
     sb_free(&sb);
@@ -2515,8 +2520,8 @@ SHASH_PRIVATE enum ShashShellOperation get_operation(char *cmd) {
     return SHASH_SHELL_OP_NONE;
 }
 
-SHASH_PRIVATE void format_sub(Shell *shell, _utf8_str *u, StringBuilder *sb,
-                              int *k) {
+SHASH_PRIVATE void format_sub(Shell *shell, shash_utf8_str *u,
+                              ShashStringBuilder *sb, int *k) {
     unsigned char ascii = utf8_is_ascii(u->str[*k]);
     if (ascii == '(') {
         if (*k == u->len - 1) {
@@ -2524,7 +2529,7 @@ SHASH_PRIVATE void format_sub(Shell *shell, _utf8_str *u, StringBuilder *sb,
             return;
         }
         (*k)++;
-        StringBuilder csb;
+        ShashStringBuilder csb;
         sb_init(&csb, 1);
         while (ascii != ')' && *k != u->len - 1) {
             ascii = utf8_is_ascii(u->str[*k]);
@@ -2556,7 +2561,7 @@ SHASH_PRIVATE void format_sub(Shell *shell, _utf8_str *u, StringBuilder *sb,
         sb_free(&csb);
 
     } else {
-        StringBuilder key_sb;
+        ShashStringBuilder key_sb;
         sb_init(&key_sb, *k);
         while (!((ascii >= 'a' && ascii <= 'z') ||
                  (ascii >= 'A' && ascii <= 'Z') || ascii == '_' ||
@@ -2580,8 +2585,8 @@ SHASH_PRIVATE void format_sub(Shell *shell, _utf8_str *u, StringBuilder *sb,
 
 SHASH_PRIVATE char *format_command(Shell *shell, char *script, char **error) {
 
-    _utf8_str u = utf8_str(script);
-    StringBuilder sb;
+    shash_utf8_str u = utf8_str(script);
+    ShashStringBuilder sb;
     sb_init(&sb, u.len);
     for (int j = 0; j < u.len; j++) {
         char *ch = u.str[j];
@@ -2602,20 +2607,20 @@ SHASH_PRIVATE char *format_command(Shell *shell, char *script, char **error) {
     return s0;
 }
 
-SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
+SHASH_PRIVATE char **expand_braces(shash_utf8_str *u, int *size, char **error) {
 #define RETURN_ERROR(msg)                                                      \
     *error = msg;                                                              \
     sb_free(&sb);                                                              \
     sb_free(&cb);                                                              \
-    arr_free(&combinations);                                                   \
-    arr_free(&mutations_arr);                                                  \
+    array_free(&combinations);                                                 \
+    array_free(&mutations_arr);                                                \
     return NULL;
 
     int num_combinations = 0;
-    Array combinations;
-    arr_init(&combinations, 1);
+    ShashArray combinations;
+    array_init(&combinations, 1);
     int escape_idx = -1;
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, u->len);
     *size = 1;
     for (int j = 0; j < u->len; j++) {
@@ -2626,14 +2631,14 @@ SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
         int is_interpolate = 0;
         bool mode_set = false;
 
-        Array mutations_arr;
-        arr_init(&mutations_arr, 1);
+        ShashArray mutations_arr;
+        array_init(&mutations_arr, 1);
 
         if (utf8_eq_ascii(ch, '\\') && escape_idx != j) {
             escape_idx = j + 1;
         } else if (utf8_eq_ascii(ch, '{') && escape_idx != j) {
             bool closed = false;
-            StringBuilder cb;
+            ShashStringBuilder cb;
             sb_init(&cb, 1);
             for (int k = j + 1; k < u->len; k++) {
                 char *cur = u->str[k];
@@ -2641,7 +2646,7 @@ SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
                     j = k;
                     closed = true;
                     if (is_interpolate == 1) {
-                        arr_free(&mutations_arr);
+                        array_free(&mutations_arr);
                         RETURN_ERROR("Invalid interpolation \".\" instead "
                                      "of \"..\"");
                     }
@@ -2662,28 +2667,28 @@ SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
 
                             snprintf(cur_num, size + 1, "%d", i);
 
-                            arr_add(&mutations_arr, cur_num);
+                            array_append(&mutations_arr, cur_num);
                         }
                     }
-                    arr_add(&mutations_arr, dupstr(cb.data));
+                    array_append(&mutations_arr, dupstr(cb.data));
                     sb_clear(&cb);
                     for (int l = 0; l < mutations_arr.size; l++) {
-                        StringBuilder copy = sb_copy_all(&sb);
+                        ShashStringBuilder copy = sb_copy_all(&sb);
                         sb_append(&copy, (char *)mutations_arr.data[l]);
                         sb_append_utf8_str(&copy, u, u->len - j - 1, j + 1);
-                        _utf8_str uo = utf8_str(copy.data);
+                        shash_utf8_str uo = utf8_str(copy.data);
                         int sizeo = 0;
                         char **inner = expand_braces(&uo, &sizeo, error);
                         if (!inner) {
                             sb_free(&sb);
                             sb_free(&cb);
                             sb_free(&copy);
-                            arr_free(&combinations);
+                            array_free(&combinations);
                             return NULL;
                         }
                         *size += sizeo;
                         for (int u = 0; u < sizeo; u++) {
-                            arr_add(&combinations, inner[u]);
+                            array_append(&combinations, inner[u]);
                         }
                         free(inner);
                         sb_free(&copy);
@@ -2711,7 +2716,7 @@ SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
                         if (!is_num) {
                             RETURN_ERROR("Invalid number.");
                         }
-                        arr_add(&mutations_arr, dupstr(cb.data));
+                        array_append(&mutations_arr, dupstr(cb.data));
                         sb_clear(&cb);
                         mode_set = true;
                     }
@@ -2719,7 +2724,7 @@ SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
                     if (cb.len == 0) {
                         RETURN_ERROR("Invalid usage empty combination.");
                     }
-                    arr_add(&mutations_arr, dupstr(cb.data));
+                    array_append(&mutations_arr, dupstr(cb.data));
                     sb_clear(&cb);
                     if (is_interpolate > 0) {
                         RETURN_ERROR("Mixing .. and , is invalid.");
@@ -2742,7 +2747,7 @@ SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
             sb_append_utf8(&sb, ch);
         }
     }
-    arr_add(&combinations, dupstr(sb.data));
+    array_append(&combinations, dupstr(sb.data));
     sb_free(&sb);
 #undef RETURN_ERROR
     return (char **)combinations.data;
@@ -2751,17 +2756,17 @@ SHASH_PRIVATE char **expand_braces(_utf8_str *u, int *size, char **error) {
 SHASH_PRIVATE char **make_expansions(Shell *shell, char **argv, int argc,
                                      int *size, char **error) {
     *size = 0;
-    Array args;
-    arr_init(&args, argc);
+    ShashArray args;
+    array_init(&args, argc);
     for (int i = 0; i < argc; i++) {
-        _utf8_str u = utf8_str(argv[i]);
+        shash_utf8_str u = utf8_str(argv[i]);
         int len = 0;
         char **expansion = expand_braces(&u, &len, error);
         if (!expansion) {
             return NULL;
         }
         for (int i = 0; i < len; i++) {
-            arr_add(&args, expansion[i]);
+            array_append(&args, expansion[i]);
         }
         free(expansion);
     }
@@ -2773,10 +2778,10 @@ SHASH_PRIVATE char **make_expansions(Shell *shell, char **argv, int argc,
 }
 
 SHASH_PRIVATE bool is_executable(Shell *shell, char *str) {
-    Array *pathext = (Array *)shell->pathext;
+    ShashArray *pathext = (ShashArray *)shell->pathext;
     char *str_l = utf8_lower_dup(str);
     for (int i = 0; i < pathext->size; i++) {
-        char *ext_l = utf8_lower_dup(arr_get(pathext, i));
+        char *ext_l = utf8_lower_dup(array_get(pathext, i));
         if (utf8_endswith(str_l, ext_l)) {
             free(ext_l);
             return true;
@@ -2824,7 +2829,7 @@ SHASH_PRIVATE Process *route_command(Shell *shell, char **argv, int argc,
     if (!argv || !*argv || argc == 0)
         return NULL;
     char *command = normalize_path_dup(argv[0]);
-    _utf8_str command_u = utf8_str(command);
+    shash_utf8_str command_u = utf8_str(command);
     if (utf8_contains_ascii_char(&command_u, '/')) {
         char *file = command;
         bool is_relative = !is_absolute(command);
@@ -2840,7 +2845,7 @@ SHASH_PRIVATE Process *route_command(Shell *shell, char **argv, int argc,
             free(file);
         }
     } else {
-        StringMap *command_map = ((StringMap *)shell->commands);
+        ShashStringMap *command_map = ((ShashStringMap *)shell->commands);
         if (string_map_contains(command_map, command)) {
             void *cmd_p = string_map_get(command_map, command);
             char *out = NULL;
@@ -2882,8 +2887,8 @@ SHASH_PRIVATE Process *route_command(Shell *shell, char **argv, int argc,
             free(command);
             return prc;
         } else {
-            for (int i = 0; i < ((Array *)shell->path)->size; i++) {
-                char *p = arr_get(shell->path, i);
+            for (int i = 0; i < ((ShashArray *)shell->path)->size; i++) {
+                char *p = array_get(shell->path, i);
                 int plen = strlen(p);
                 char *pattern = (char *)xmalloc(plen + 3);
                 if (!pattern) {
@@ -2893,9 +2898,9 @@ SHASH_PRIVATE Process *route_command(Shell *shell, char **argv, int argc,
                 pattern[plen] = '/';
                 pattern[plen + 1] = '*';
                 pattern[plen + 2] = 0;
-                Array *files = get_files_dup(pattern);
+                ShashArray *files = get_files_dup(pattern);
                 for (int j = 0; j < files->size; j++) {
-                    char *name = arr_get(files, j);
+                    char *name = array_get(files, j);
                     char *no_ext = remove_ext_dup(name);
                     if (strcmp(no_ext, command) == 0) {
                         char *join = join_path_dup(p, name);
@@ -2907,7 +2912,7 @@ SHASH_PRIVATE Process *route_command(Shell *shell, char **argv, int argc,
                             free(command);
                             free(join);
                             free(name);
-                            arr_free(files);
+                            array_free(files);
                             free(pattern);
                             argv[0] = join;
                             Process *prc = process_launch(
@@ -2924,7 +2929,7 @@ SHASH_PRIVATE Process *route_command(Shell *shell, char **argv, int argc,
                     }
                     free(no_ext);
                 }
-                arr_free(files);
+                array_free(files);
                 free(pattern);
             }
         }
@@ -2945,33 +2950,33 @@ SHASH_PRIVATE wchar_t *shell_path_normalize_wide_dup(Shell *shell, char *path) {
     return wide;
 }
 
-SHASH_PRIVATE Array *group_by_dup(char **tokens, int num_tokens,
-                                  char *separator) {
-    Array *result = xmalloc(sizeof(Array));
-    arr_init(result, 1);
-    Array build;
-    arr_init(&build, 1);
+SHASH_PRIVATE ShashArray *group_by_dup(char **tokens, int num_tokens,
+                                       char *separator) {
+    ShashArray *result = xmalloc(sizeof(ShashArray));
+    array_init(result, 1);
+    ShashArray build;
+    array_init(&build, 1);
     for (int i = 0; i < num_tokens; i++) {
         if (strcmp(tokens[i], separator) == 0) {
-            Array *group = xmalloc(sizeof(Array));
-            arr_init(group, build.size);
+            ShashArray *group = xmalloc(sizeof(ShashArray));
+            array_init(group, build.size);
             group->size = build.size;
             memcpy(group->data, build.data, build.size * sizeof(void *));
-            arr_add(result, group);
-            arr_clear(&build);
+            array_append(result, group);
+            array_clear(&build);
         } else {
-            arr_add(&build, tokens[i]);
+            array_append(&build, tokens[i]);
         }
     }
     if (build.size != 0) {
-        Array *group = xmalloc(sizeof(Array));
-        arr_init(group, build.size);
+        ShashArray *group = xmalloc(sizeof(ShashArray));
+        array_init(group, build.size);
         group->size = build.size;
         memcpy(group->data, build.data, build.size * sizeof(void *));
-        arr_add(result, group);
-        arr_clear(&build);
+        array_append(result, group);
+        array_clear(&build);
     }
-    arr_free(&build);
+    array_free(&build);
     return result;
 }
 
@@ -3043,14 +3048,14 @@ SHASH_PRIVATE int execute_pipeline(Shell *shell, char **tokens, int num_tokens,
                                    ShashPipe *stdin_pipe,
                                    ShashPipe *stdout_pipe,
                                    ShashPipe *stderr_pipe) {
-    Array *commands = group_by_dup(tokens, num_tokens, "|");
+    ShashArray *commands = group_by_dup(tokens, num_tokens, "|");
     if (commands->size == 1) {
-        Array *cmd = (Array *)arr_get(commands, 0);
+        ShashArray *cmd = (ShashArray *)array_get(commands, 0);
         int exit_code =
             execute_simple_command(shell, (char **)cmd->data, cmd->size,
                                    stdin_pipe, stdout_pipe, stderr_pipe);
-        arr_free(cmd);
-        arr_free(commands);
+        array_free(cmd);
+        array_free(commands);
         return exit_code;
     }
 
@@ -3064,7 +3069,7 @@ SHASH_PRIVATE int execute_pipeline(Shell *shell, char **tokens, int num_tokens,
     for (int i = 0; i < commands->size - 1; i++) {
         shash_pipe_open(&pipes[i]);
 
-        Array *cmd = arr_get(commands, i);
+        ShashArray *cmd = array_get(commands, i);
         procs[i] =
             route_command(shell, (char **)cmd->data, cmd->size, next_cmd_stdin,
                           &pipes[i], stderr_pipe, true); // true = launch async
@@ -3075,7 +3080,7 @@ SHASH_PRIVATE int execute_pipeline(Shell *shell, char **tokens, int num_tokens,
     }
 
     int last_cmd_idx = commands->size - 1;
-    Array *last_cmd = (Array *)arr_get(commands, last_cmd_idx);
+    ShashArray *last_cmd = (ShashArray *)array_get(commands, last_cmd_idx);
     procs[last_cmd_idx] = route_command(
         shell, (char **)last_cmd->data, last_cmd->size, next_cmd_stdin,
         stdout_pipe, stderr_pipe, true); // true = launch async
@@ -3098,7 +3103,7 @@ SHASH_PRIVATE int execute_pipeline(Shell *shell, char **tokens, int num_tokens,
     }
     free(procs);
     free(pipes);
-    arr_free(commands);
+    array_free(commands);
 
     return last_exit_code;
 }
@@ -3121,15 +3126,15 @@ SHASH_PRIVATE int process_line(Shell *shell, char **tokens, int num_tokens,
     int argc;
     char **argv = make_expansions(shell, tokens, num_tokens, &argc, NULL);
     bool temp_assign = num_tokens > 1;
-    Array temp_names;
-    Array temp_vals;
-    arr_init(&temp_names, argc);
-    arr_init(&temp_vals, argc);
+    ShashArray temp_names;
+    ShashArray temp_vals;
+    array_init(&temp_names, argc);
+    array_init(&temp_vals, argc);
     while (argc > 0) {
         char *assignment = *argv;
-        _utf8_str u = utf8_str(assignment);
-        StringBuilder name_sb;
-        StringBuilder val_sb;
+        shash_utf8_str u = utf8_str(assignment);
+        ShashStringBuilder name_sb;
+        ShashStringBuilder val_sb;
         sb_init(&name_sb, u.nb / 2);
         sb_init(&val_sb, u.nb / 2);
         bool state_is_val = false;
@@ -3152,14 +3157,14 @@ SHASH_PRIVATE int process_line(Shell *shell, char **tokens, int num_tokens,
         }
         wchar_t *name = utf8_to_wide_dup(name_sb.data);
         if (temp_assign) {
-            arr_add(&temp_names, name);
+            array_append(&temp_names, name);
             uint32_t val_size = GetEnvironmentVariableW(name, NULL, 0);
             if (val_size == 0) {
-                arr_add(&temp_vals, NULL);
+                array_append(&temp_vals, NULL);
             } else {
                 wchar_t *val = xmalloc(val_size * sizeof(wchar_t));
                 GetEnvironmentVariableW(name, val, val_size);
-                arr_add(&temp_vals, val);
+                array_append(&temp_vals, val);
             }
         } else {
             string_map_put(shell->global, dupstr(name_sb.data),
@@ -3179,12 +3184,12 @@ SHASH_PRIVATE int process_line(Shell *shell, char **tokens, int num_tokens,
     if (split_point == -1) {
         if (temp_assign) {
             for (int i = 0; i < temp_names.size; i++) {
-                SetEnvironmentVariableW(arr_get(&temp_names, i),
-                                        arr_get(&temp_vals, i));
+                SetEnvironmentVariableW(array_get(&temp_names, i),
+                                        array_get(&temp_vals, i));
             }
         }
-        arr_free(&temp_names);
-        arr_free(&temp_vals);
+        array_free(&temp_names);
+        array_free(&temp_vals);
         return execute_pipeline(shell, argv, argc, stdin_pipe, stdout_pipe,
                                 stderr_pipe);
     } else {
@@ -3200,12 +3205,12 @@ SHASH_PRIVATE int process_line(Shell *shell, char **tokens, int num_tokens,
         if (logical_op == SHASH_SHELL_OP_LOGICAL_AND && lhs_exit_code == 0) {
             if (temp_assign) {
                 for (int i = 0; i < temp_names.size; i++) {
-                    SetEnvironmentVariableW(arr_get(&temp_names, i),
-                                            arr_get(&temp_vals, i));
+                    SetEnvironmentVariableW(array_get(&temp_names, i),
+                                            array_get(&temp_vals, i));
                 }
             }
-            arr_free(&temp_names);
-            arr_free(&temp_vals);
+            array_free(&temp_names);
+            array_free(&temp_vals);
             return process_line(shell, rhs_tokens, rhs_num_tokens, stdin_pipe,
                                 stdout_pipe,
                                 stderr_pipe); // Recurse for chaining
@@ -3213,24 +3218,24 @@ SHASH_PRIVATE int process_line(Shell *shell, char **tokens, int num_tokens,
         if (logical_op == SHASH_SHELL_OP_LOGICAL_OR && lhs_exit_code != 0) {
             if (temp_assign) {
                 for (int i = 0; i < temp_names.size; i++) {
-                    SetEnvironmentVariableW(arr_get(&temp_names, i),
-                                            arr_get(&temp_vals, i));
+                    SetEnvironmentVariableW(array_get(&temp_names, i),
+                                            array_get(&temp_vals, i));
                 }
             }
-            arr_free(&temp_names);
-            arr_free(&temp_vals);
+            array_free(&temp_names);
+            array_free(&temp_vals);
             return process_line(shell, rhs_tokens, rhs_num_tokens, stdin_pipe,
                                 stdout_pipe,
                                 stderr_pipe); // Recurse for chaining
         }
         if (temp_assign) {
             for (int i = 0; i < temp_names.size; i++) {
-                SetEnvironmentVariableW(arr_get(&temp_names, i),
-                                        arr_get(&temp_vals, i));
+                SetEnvironmentVariableW(array_get(&temp_names, i),
+                                        array_get(&temp_vals, i));
             }
         }
-        arr_free(&temp_names);
-        arr_free(&temp_vals);
+        array_free(&temp_names);
+        array_free(&temp_vals);
         return lhs_exit_code;
     }
 }
@@ -3293,16 +3298,16 @@ void shell_run(Shell *shell, char *script, size_t len, ShashPipe *stdin_pipe,
         if (control == SHASH_CONTROL_MODE_IF && num_tokens == 1 &&
             strcmp(token, "fi") == 0) {
             pass = false;
-            int_arr_pop(&control_stack);
-            int_arr_pop(&control_data_stack);
+            int_array_pop(&control_stack);
+            int_array_pop(&control_data_stack);
         }
         if (!pass)
             break;
         if (strcmp(token, "if") == 0) {
             last_exit_code = process_line(shell, tokens + 1, num_tokens - 1,
                                           stdin_pipe, stdout_pipe, stderr_pipe);
-            int_arr_add(&control_stack, SHASH_CONTROL_MODE_IF);
-            int_arr_add(&control_data_stack, last_exit_code == 0);
+            int_array_append(&control_stack, SHASH_CONTROL_MODE_IF);
+            int_array_append(&control_data_stack, last_exit_code == 0);
             if (rem > 0) {
                 if (strcmp(lines[i + 1], "then")) {
                     i++;
@@ -3321,8 +3326,8 @@ void shell_run(Shell *shell, char *script, size_t len, ShashPipe *stdin_pipe,
         }
         free(tokens);
     }
-    int_arr_free(&control_stack);
-    int_arr_free(&control_data_stack);
+    int_array_free(&control_stack);
+    int_array_free(&control_data_stack);
     free(lines);
 }
 
@@ -3404,7 +3409,7 @@ SHASH_PRIVATE bool glob_match(const wchar_t *pattern, const wchar_t *name) {
 
 SHASH_PRIVATE void glob_resolve_recursive(const wchar_t *base_path,
                                           const wchar_t *pattern,
-                                          Array *results) {
+                                          ShashArray *results) {
     // Find the first path separator in the pattern
     const wchar_t *separator = wcschr(pattern, L'\\');
     if (!separator) {
@@ -3475,7 +3480,7 @@ SHASH_PRIVATE void glob_resolve_recursive(const wchar_t *base_path,
             // If this is the last component in the pattern...
             if (wcslen(next_pattern) == 0) {
                 char *u = wide_to_utf8_dup(new_path);
-                arr_add(results, normalize_path_dup(u));
+                array_append(results, normalize_path_dup(u));
                 free(u);
             }
             // If it's a directory and there's more pattern to match...
@@ -3491,9 +3496,9 @@ SHASH_PRIVATE void glob_resolve_recursive(const wchar_t *base_path,
     FindClose(hFind);
 }
 
-SHASH_PRIVATE Array glob_resolve(const char *pattern) {
-    Array results;
-    arr_init(&results, 1);
+SHASH_PRIVATE ShashArray glob_resolve(const char *pattern) {
+    ShashArray results;
+    array_init(&results, 1);
 
     wchar_t full_pattern[MAX_PATH];
     wchar_t *pat = utf8_to_wide_dup(pattern);
@@ -3667,24 +3672,24 @@ SHASH_PRIVATE int cmd_ls(Shell *shell, char **argv, int argc,
                 shell_path_normalize_dup(shell, parse->positional_arguments[0]);
             uint32_t attrib = get_attributes(path);
             if (!file_exists(attrib)) {
-                Array files = glob_resolve(path);
+                ShashArray files = glob_resolve(path);
                 for (int i = 0; i < files.size; i++) {
-                    shash_pipe_puts(stdout_pipe, arr_get(&files, i));
+                    shash_pipe_puts(stdout_pipe, array_get(&files, i));
                     shash_pipe_puts(stdout_pipe, "\n");
-                    free(arr_get(&files, i));
+                    free(array_get(&files, i));
                 }
-                arr_free(&files);
+                array_free(&files);
             } else {
                 if (is_dir(attrib)) {
                     char pattern[MAX_PATH];
                     snprintf(pattern, MAX_PATH, "%s/*", path);
-                    Array *files = get_files_dup(pattern);
+                    ShashArray *files = get_files_dup(pattern);
                     for (int i = 0; i < files->size; i++) {
-                        shash_pipe_puts(stdout_pipe, arr_get(files, i));
+                        shash_pipe_puts(stdout_pipe, array_get(files, i));
                         shash_pipe_puts(stdout_pipe, "\n");
-                        free(arr_get(files, i));
+                        free(array_get(files, i));
                     }
-                    arr_free(files);
+                    array_free(files);
                 } else {
                     shash_pipe_puts(stdout_pipe, path);
                     shash_pipe_puts(stdout_pipe, "\n");
@@ -3695,20 +3700,21 @@ SHASH_PRIVATE int cmd_ls(Shell *shell, char **argv, int argc,
     } else {
         char pattern[MAX_PATH];
         snprintf(pattern, MAX_PATH, "%s/*", path);
-        Array *files = get_files_dup(pattern);
+        ShashArray *files = get_files_dup(pattern);
         for (int i = 0; i < files->size; i++) {
-            shash_pipe_puts(stdout_pipe, arr_get(files, i));
+            shash_pipe_puts(stdout_pipe, array_get(files, i));
             {
                 char f[MAX_PATH];
-                snprintf(f, MAX_PATH, "%s/%s", path, (char *)arr_get(files, i));
+                snprintf(f, MAX_PATH, "%s/%s", path,
+                         (char *)array_get(files, i));
                 if (is_dir(get_attributes(f))) {
                     shash_pipe_puts(stdout_pipe, " (dir)");
                 }
             }
             shash_pipe_puts(stdout_pipe, "\n");
-            free(arr_get(files, i));
+            free(array_get(files, i));
         }
-        arr_free(files);
+        array_free(files);
     }
     return 0;
 }
@@ -3727,8 +3733,8 @@ SHASH_PRIVATE int cmd_mkdir(Shell *shell, char **argv, int argc,
     ParsedArgument *parents = parse_result_get_argument(parse, "--parents");
     ParsedArgument *quiet = parse_result_get_argument(parse, "--quiet");
     for (int i = 0; i < parse->num_pos_args; i++) {
-        Array paths;
-        arr_init(&paths, 1);
+        ShashArray paths;
+        array_init(&paths, 1);
         char *path =
             shell_path_normalize_dup(shell, parse->positional_arguments[i]);
         if (parents) {
@@ -3736,13 +3742,13 @@ SHASH_PRIVATE int cmd_mkdir(Shell *shell, char **argv, int argc,
                 char *new_path = dupstr(path);
                 free(path);
                 path = path_parent_dup(new_path);
-                arr_add(&paths, new_path);
+                array_append(&paths, new_path);
             }
         } else {
-            arr_add(&paths, path);
+            array_append(&paths, path);
         }
         for (int j = paths.size - 1; j >= 0; j--) {
-            wchar_t *wide = utf8_to_wide_dup(arr_get(&paths, j));
+            wchar_t *wide = utf8_to_wide_dup(array_get(&paths, j));
             int flag = CreateDirectoryW(wide, NULL);
             HeapFree(GetProcessHeap(), 0, wide);
             if (!quiet) {
@@ -3763,7 +3769,7 @@ SHASH_PRIVATE int cmd_mkdir(Shell *shell, char **argv, int argc,
             }
         }
         free(path);
-        arr_free(&paths);
+        array_free(&paths);
     }
     parse_result_free(parse);
     return 0;
@@ -3780,7 +3786,7 @@ SHASH_PRIVATE int cmd_rmdir(Shell *shell, char **argv, int argc,
         shash_pipe_printf(stderr_pipe, "rmdir: %s\n", error_msg);
         return 1;
     }
-    StringBuilder sb;
+    ShashStringBuilder sb;
     sb_init(&sb, 1);
     ParsedArgument *quiet = parse_result_get_argument(parse, "--quiet");
     for (int i = 0; i < parse->num_pos_args; i++) {
@@ -3822,8 +3828,8 @@ SHASH_PRIVATE int cmd_tee(Shell *shell, char **argv, int argc,
         shash_pipe_printf(stderr_pipe, "tee: %s\n", error_msg);
         return 1;
     }
-    Array files;
-    arr_init(&files, parse->num_pos_args);
+    ShashArray files;
+    array_init(&files, parse->num_pos_args);
     for (int i = 0; i < parse->num_pos_args; i++) {
 
         char *p =
@@ -3837,7 +3843,7 @@ SHASH_PRIVATE int cmd_tee(Shell *shell, char **argv, int argc,
                 shash_pipe_printf(stderr_pipe, "tee: %s: %s\n", p, err_s);
                 LocalFree(err_s);
             } else {
-                arr_add(&files, file);
+                array_append(&files, file);
             }
         } else {
             shash_pipe_printf(stderr_pipe, "tee: %s: Is a directory\n", p);
@@ -3849,11 +3855,11 @@ SHASH_PRIVATE int cmd_tee(Shell *shell, char **argv, int argc,
     while (shash_pipe_read(stdin_pipe, chunk, 4096, &bytes_read) > 0) {
         shash_pipe_write(stdout_pipe, chunk, bytes_read);
         for (int i = 0; i < files.size; i++) {
-            write_file(arr_get(&files, i), chunk, bytes_read);
-            close_file(arr_get(&files, i));
+            write_file(array_get(&files, i), chunk, bytes_read);
+            close_file(array_get(&files, i));
         }
     }
-    arr_free(&files);
+    array_free(&files);
     parse_result_free(parse);
     return 0;
 }
@@ -3907,7 +3913,7 @@ SHASH_PRIVATE int cmd_sleep(Shell *shell, char **argv, int argc,
         shash_pipe_printf(stdout_pipe, "sleep: %s\n", error_msg);
         return 1;
     }
-    _utf8_str u = utf8_str(parse->positional_arguments[0]);
+    shash_utf8_str u = utf8_str(parse->positional_arguments[0]);
     bool is_decimal = false;
     uint64_t int_part = 0;
     double decimal_part = 0;
@@ -3948,10 +3954,10 @@ void cp_recurse(ShashPipe *stdout_pipe, char *folder, char *dest, bool v) {
     pattern[len] = '/';
     pattern[len + 1] = '*';
     pattern[len + 2] = 0;
-    Array *files = get_files_dup(pattern);
+    ShashArray *files = get_files_dup(pattern);
     free(pattern);
     for (int i = 0; i < files->size; i++) {
-        char *name = arr_get(files, i);
+        char *name = array_get(files, i);
         char *path = join_path_dup(folder, name);
         char *r_dest = join_path_dup(dest, name);
         if (is_dir(get_attributes(path))) {
@@ -3982,7 +3988,7 @@ void cp_recurse(ShashPipe *stdout_pipe, char *folder, char *dest, bool v) {
         free(name);
         free(path);
     }
-    arr_free(files);
+    array_free(files);
 }
 
 SHASH_PRIVATE int cmd_cp(Shell *shell, char **argv, int argc,
@@ -4015,10 +4021,10 @@ SHASH_PRIVATE int cmd_cp(Shell *shell, char **argv, int argc,
 
     for (int i = 0; i < args - 1; i++) {
         char *n = normalize_path_dup(parse->positional_arguments[i]);
-        Array paths = glob_resolve(n);
+        ShashArray paths = glob_resolve(n);
         free(n);
         for (int j = 0; j < paths.size; j++) {
-            char *display_path = (char *)arr_get(&paths, j);
+            char *display_path = (char *)array_get(&paths, j);
             char *path = shell_path_normalize_dup(shell, display_path);
 
             int fattrib = get_attributes(path);
@@ -4143,10 +4149,10 @@ SHASH_PRIVATE int cmd_mv(Shell *shell, char **argv, int argc,
 
     for (int i = 0; i < args - 1; i++) {
         char *n = normalize_path_dup(parse->positional_arguments[i]);
-        Array paths = glob_resolve(n);
+        ShashArray paths = glob_resolve(n);
         free(n);
         for (int j = 0; j < paths.size; j++) {
-            char *display_path = (char *)arr_get(&paths, j);
+            char *display_path = (char *)array_get(&paths, j);
             char *path = shell_path_normalize_dup(shell, display_path);
 
             int fattrib = get_attributes(path);
@@ -4405,9 +4411,9 @@ SHASH_PRIVATE int cmd_cat(Shell *shell, char **argv, int argc,
     for (int i = 0; i < parse->num_pos_args; i++) {
         char *pattern =
             shell_path_normalize_dup(shell, parse->positional_arguments[i]);
-        Array paths = glob_resolve(pattern);
+        ShashArray paths = glob_resolve(pattern);
         for (int j = 0; j < paths.size; j++) {
-            char *path = arr_get(&paths, j);
+            char *path = array_get(&paths, j);
             int error;
             void *file = open_file(path, false, false, &error);
             if (error) {
@@ -4457,7 +4463,7 @@ SHASH_PRIVATE int cmd_cat(Shell *shell, char **argv, int argc,
             }
             close_file(file);
         }
-        arr_free(&paths);
+        array_free(&paths);
     }
 
     parse_result_free(parse);
@@ -4723,7 +4729,7 @@ Shell *make_shell(bool is_interactive) {
 #endif
 
     shell->pathext = separate_paths_dup(pathext);
-    arr_add(shell->pathext, ".shs");
+    array_append(shell->pathext, ".shs");
 
     shell->path = separate_paths_dup(path);
 
@@ -4740,37 +4746,37 @@ Shell *make_sub_shell(Shell *origin) {
     shell->commands = string_map_copy(origin->commands);
     shell->process_table = int_map_copy(origin->process_table);
 
-    shell->pathext = (Array *)xmalloc(sizeof(Array));
-    arr_copy(origin->pathext, shell->pathext);
+    shell->pathext = (ShashArray *)xmalloc(sizeof(ShashArray));
+    array_copy(origin->pathext, shell->pathext);
 
-    shell->path = (Array *)xmalloc(sizeof(Array));
-    arr_copy(origin->path, shell->path);
+    shell->path = (ShashArray *)xmalloc(sizeof(ShashArray));
+    array_copy(origin->path, shell->path);
 
     return shell;
 }
 
 void shell_free(Shell *shell) {
-    string_map_free((StringMap *)shell->environment_variables);
-    string_map_free((StringMap *)shell->global);
-    string_map_free((StringMap *)shell->commands);
-    int_map_free((IntMap *)shell->process_table);
-    Array *path = (Array *)shell->path;
-    Array *pathext = (Array *)shell->pathext;
+    string_map_free((ShashStringMap *)shell->environment_variables);
+    string_map_free((ShashStringMap *)shell->global);
+    string_map_free((ShashStringMap *)shell->commands);
+    int_map_free((ShashIntMap *)shell->process_table);
+    ShashArray *path = (ShashArray *)shell->path;
+    ShashArray *pathext = (ShashArray *)shell->pathext;
     for (int i = 0; i < path->size; i++) {
         free(path->data[i]);
     }
     for (int i = 0; i < pathext->size; i++) {
         free(pathext->data[i]);
     }
-    arr_free(path);
-    arr_free(pathext);
+    array_free(path);
+    array_free(pathext);
     free(shell);
 }
 
 Shell *make_shell_no_interactive() { return make_shell(false); }
 
 void shell_register_command(Shell *shell, char *name, Command command) {
-    StringMap *commands = ((StringMap *)shell->commands);
+    ShashStringMap *commands = ((ShashStringMap *)shell->commands);
     string_map_put(commands, name, (void *)command);
 }
 
